@@ -29,7 +29,7 @@ const participantSchema = Joi.object({ name: Joi.string().required() })
 const messageSchema = Joi.object({
     from: Joi.string().required(),
     to: Joi.string().required(),
-    text: Joi.string().required(), 
+    text: Joi.string().required(),
     type: Joi.required().valid("message", "private_message")
 })
 
@@ -90,6 +90,26 @@ app.post("/messages", async (req, res) => {
         await db.collection('messages').insertOne(message)
         res.sendStatus(201)
 
+    } catch (err) {
+        res.status(500).send(err.message)
+    }
+})
+
+app.get("/messages", async (req, res) => {
+    const { user } = req.headers
+    const { limit } = req.query
+    const numLimit = Number(limit)
+
+    if (limit !== undefined && (numLimit <= 0 || isNaN(numLimit))) return res.sendStatus(422)
+
+    try {
+        const messages = await db.collection('messages')
+            .find({ $or: [{ from: user }, { to: user }, { type: "message" }, { to: "Todos" }] })
+            .sort({ time: -1 })
+            .limit(limit === undefined ? 0 : numLimit)
+            .toArray()
+
+        res.send(messages)
     } catch (err) {
         res.status(500).send(err.message)
     }
