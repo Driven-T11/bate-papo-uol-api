@@ -26,6 +26,12 @@ const db = mongoClient.db()
 
 // Schemas
 const participantSchema = Joi.object({ name: Joi.string().required() })
+const messageSchema = Joi.object({
+    from: Joi.string().required(),
+    to: Joi.string().required(),
+    text: Joi.string().required(), 
+    type: Joi.required().valid("message", "private_message")
+})
 
 // Endpoints
 app.post("/participants", async (req, res) => {
@@ -62,6 +68,28 @@ app.get("/participants", async (req, res) => {
     try {
         const participants = await db.collection('participants').find().toArray()
         res.send(participants)
+    } catch (err) {
+        res.status(500).send(err.message)
+    }
+})
+
+app.post("/messages", async (req, res) => {
+    const { to, text, type } = req.body
+    const { user } = req.headers
+
+    const validation = messageSchema.validate({ ...req.body, from: user }, { abortEarly: false })
+    if (validation.error) {
+        return res.status(422).send(validation.error.details.map(detail => detail.message))
+    }
+
+    try {
+        const participant = await db.collection('participants').findOne({ name: user })
+        if (!participant) return res.sendStatus(422)
+
+        const message = { from: user, to, text, type, time: dayjs().format('HH:mm:ss') }
+        await db.collection('messages').insertOne(message)
+        res.sendStatus(201)
+
     } catch (err) {
         res.status(500).send(err.message)
     }
