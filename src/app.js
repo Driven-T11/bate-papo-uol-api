@@ -4,6 +4,7 @@ import dotenv from "dotenv"
 import { MongoClient } from "mongodb"
 import Joi from "joi"
 import dayjs from "dayjs"
+import { stripHtml } from "string-strip-html"
 
 const app = express()
 
@@ -25,11 +26,11 @@ try {
 const db = mongoClient.db()
 
 // Schemas
-const participantSchema = Joi.object({ name: Joi.string().required() })
+const participantSchema = Joi.object({ name: Joi.string().required().trim() })
 const messageSchema = Joi.object({
-    from: Joi.string().required(),
-    to: Joi.string().required(),
-    text: Joi.string().required(),
+    from: Joi.string().required().trim(),
+    to: Joi.string().required().trim(),
+    text: Joi.string().required().trim(),
     type: Joi.required().valid("message", "private_message")
 })
 
@@ -42,15 +43,17 @@ app.post("/participants", async (req, res) => {
         return res.status(422).send(validation.error.details.map(detail => detail.message))
     }
 
+    const cleanName = stripHtml(name).result
+
     try {
         const participant = await db.collection('participants').findOne({ name })
         if (participant) return res.sendStatus(409)
 
         const timestamp = Date.now()
-        await db.collection('participants').insertOne({ name, lastStatus: timestamp })
+        await db.collection('participants').insertOne({ name: cleanName, lastStatus: timestamp })
 
         const message = {
-            from: name,
+            from: cleanName,
             to: 'Todos',
             text: 'entra na sala...',
             type: 'status',
@@ -82,11 +85,19 @@ app.post("/messages", async (req, res) => {
         return res.status(422).send(validation.error.details.map(detail => detail.message))
     }
 
+    const name = stripHtml(user).result
+    const message = {
+        from: name,
+        to: stripHtml(to).result,
+        text: stripHtml(text).result,
+        type: stripHtml(type).result,
+        time: dayjs().format('HH:mm:ss')
+    }
+
     try {
-        const participant = await db.collection('participants').findOne({ name: user })
+        const participant = await db.collection('participants').findOne({ name })
         if (!participant) return res.sendStatus(422)
 
-        const message = { from: user, to, text, type, time: dayjs().format('HH:mm:ss') }
         await db.collection('messages').insertOne(message)
         res.sendStatus(201)
 
