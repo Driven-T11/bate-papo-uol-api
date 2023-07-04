@@ -105,7 +105,7 @@ app.get("/messages", async (req, res) => {
     try {
         const messages = await db.collection('messages')
             .find({ $or: [{ from: user }, { to: user }, { type: "message" }, { to: "Todos" }] })
-            .sort({ time: -1 })
+            .sort({ $natural: -1 })
             .limit(limit === undefined ? 0 : numLimit)
             .toArray()
 
@@ -135,6 +135,34 @@ app.post("/status", async (req, res) => {
         res.status(500).send(err.message)
     }
 })
+
+setInterval(async () => {
+    const tenSecondsAgo = Date.now() - 10000
+
+    try {
+        const inactiveUsers = await db.collection("participants")
+            .find({ lastStatus: { $lt: tenSecondsAgo } })
+            .toArray()
+
+
+        if (inactiveUsers.length > 0) {
+            const messages = inactiveUsers.map(user => {
+                return {
+                    from: user.name,
+                    to: 'Todos',
+                    text: 'sai da sala...',
+                    type: 'status',
+                    time: dayjs().format('HH:mm:ss')
+                }
+            })
+
+            await db.collection('messages').insertMany(messages)
+            await db.collection('participants').deleteMany({ lastStatus: { $lt: tenSecondsAgo } })
+        }
+    } catch (err) {
+        console.log(err)
+    }
+}, 1000)
 
 // Deixa o app escutando, à espera de requisições
 const PORT = 5000
