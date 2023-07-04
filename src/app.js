@@ -1,7 +1,7 @@
 import cors from "cors"
 import express from "express"
 import dotenv from "dotenv"
-import { MongoClient } from "mongodb"
+import { MongoClient, ObjectId } from "mongodb"
 import Joi from "joi"
 import dayjs from "dayjs"
 import { stripHtml } from "string-strip-html"
@@ -121,6 +121,23 @@ app.get("/messages", async (req, res) => {
             .toArray()
 
         res.send(messages)
+    } catch (err) {
+        res.status(500).send(err.message)
+    }
+})
+
+app.delete("/messages/:id", async (req, res) => {
+    const { id } = req.params
+    const { user } = req.headers
+
+    try {
+        const message = await db.collection('messages').findOne({ _id: new ObjectId(id) })
+        if (!message) return res.sendStatus(404)
+        if (message.from !== user) return res.sendStatus(401)
+
+        await db.collection('messages').deleteOne({ _id: new ObjectId(id) })
+        res.sendStatus(204)
+
     } catch (err) {
         res.status(500).send(err.message)
     }
